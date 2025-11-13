@@ -1,12 +1,11 @@
-
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { ConversionTask } from '../types';
 import { ConversionType } from '../types';
 import FileUpload from './FileUpload';
 import Spinner from './Spinner';
 import { useHistory } from '../hooks/useHistory';
-import { imageToText } from '../services/geminiService';
-import { imagesToPdf, textToPdf, pdfToText } from '../services/fileConverter';
+import { imageToText, pdfToWord } from '../services/geminiService';
+import { imagesToPdf, textToPdf } from '../services/fileConverter';
 
 interface ConversionModalProps {
   type: ConversionType;
@@ -19,13 +18,47 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const { addHistoryItem } = useHistory();
+  const progressIntervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isLoading) {
+      progressIntervalRef.current = window.setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            if (progressIntervalRef.current) {
+              clearInterval(progressIntervalRef.current);
+            }
+            return 95;
+          }
+          return prev + 5;
+        });
+      }, 200);
+    } else {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    }
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, [isLoading]);
 
   const resetState = useCallback(() => {
     setFiles([]);
     setIsLoading(false);
     setResult(null);
     setError(null);
+    setFileError(null);
+    setProgress(0);
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
   }, []);
 
   const handleClose = () => {
@@ -35,8 +68,16 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
 
   const handleFilesSelected = (selectedFiles: File[]) => {
     setError(null);
+    setFileError(null);
     setResult(null);
     setFiles(selectedFiles);
+  };
+
+  const handleFileError = (errorMessage: string | null) => {
+    setFileError(errorMessage);
+    if (errorMessage) {
+      setFiles([]);
+    }
   };
   
   const handleDownload = (content: string | Blob, filename: string) => {
@@ -58,7 +99,9 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
       return;
     }
     setIsLoading(true);
+    setProgress(0);
     setError(null);
+    setFileError(null);
     setResult(null);
 
     try {
@@ -83,7 +126,7 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
           task = { fileName: files[0].name, type, output: pdfBlobTxt, outputFileName: `${files[0].name.split('.')[0]}.pdf` };
           break;
         case ConversionType.PDF_TO_WORD:
-          const extractedText = await pdfToText(files[0]);
+          const extractedText = await pdfToWord(files[0]);
           setResult(extractedText);
           task = { fileName: files[0].name, type, output: extractedText, outputFileName: `${files[0].name.split('.')[0]}.txt` };
           break;
@@ -96,7 +139,7 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
         id: Date.now().toString(),
         date: new Date().toISOString(),
       });
-
+      setProgress(100);
     } catch (e: any) {
       console.error(e);
       setError(e.message || 'An unexpected error occurred during conversion.');
@@ -107,8 +150,8 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
   
   const getAcceptableFiles = () => {
     switch(type) {
-        case ConversionType.IMAGE_TO_TEXT: return 'image/jpeg, image/png';
-        case ConversionType.IMAGE_TO_PDF: return 'image/jpeg, image/png';
+        case ConversionType.IMAGE_TO_TEXT: return 'image/jpeg, image/png, image/webp';
+        case ConversionType.IMAGE_TO_PDF: return 'image/jpeg, image/png, image/webp';
         case ConversionType.TEXT_TO_PDF: return '.txt, .doc, .docx';
         case ConversionType.PDF_TO_WORD: return '.pdf';
         default: return '*/*';
@@ -136,6 +179,14 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
             <div className="flex flex-col items-center justify-center h-64">
               <Spinner size="lg" />
               <p className="mt-4 text-lg">Processing your files...</p>
+              <div className="w-full bg-gray-200 rounded-full dark:bg-gray-700 mt-4">
+                <div
+                    className="bg-primary-600 text-xs font-medium text-blue-100 text-center p-0.5 leading-none rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                >
+                    {progress}%
+                </div>
+              </div>
             </div>
           ) : result ? (
              <div className="space-y-4">
@@ -167,6 +218,8 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
                 accept={getAcceptableFiles()}
                 multiple={isMultipleAllowed}
                 title={isMultipleAllowed ? 'Select images' : 'Select a file'}
+                error={fileError}
+                onError={handleFileError}
               />
                {files.length > 0 && (
                 <div>

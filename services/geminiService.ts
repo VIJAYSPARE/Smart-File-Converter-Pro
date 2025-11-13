@@ -28,3 +28,20 @@ export const imageToText = async (imageFile: File): Promise<string> => {
 
   return response.text;
 };
+
+export const pdfToWord = async (pdfFile: File): Promise<string> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY environment variable not set");
+  }
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const pdfPart = await fileToGenerativePart(pdfFile);
+  const textPart = { text: "You are an expert document converter. Convert the following PDF document into a well-formatted text file. Preserve the original structure, including headings, paragraphs, lists, and tables. Replicate the layout and formatting as closely as possible in plain text. Do not add any commentary or explanations, only provide the converted document content." };
+  
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: { parts: [pdfPart, textPart] },
+  });
+
+  return response.text;
+};

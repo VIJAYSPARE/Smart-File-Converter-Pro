@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef } from 'react';
 
 interface FileUploadProps {
@@ -6,11 +5,56 @@ interface FileUploadProps {
   accept: string;
   multiple: boolean;
   title: string;
+  error: string | null;
+  onError: (error: string | null) => void;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, accept, multiple, title }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, accept, multiple, title, error, onError }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const validateFiles = useCallback((files: File[]): boolean => {
+    if (!accept || accept === '*/*') {
+      return true;
+    }
+    const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
+  
+    for (const file of files) {
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type.toLowerCase();
+  
+      const isValid = acceptedTypes.some(type => {
+        if (type.endsWith('/*')) { // Wildcard e.g. image/*
+          return fileType.startsWith(type.slice(0, -1));
+        }
+        if (type.startsWith('.')) { // Extension e.g. .pdf
+          return fileName.endsWith(type);
+        }
+        return fileType === type; // MIME type e.g. image/jpeg
+      });
+  
+      if (!isValid) {
+        return false;
+      }
+    }
+    return true;
+  }, [accept]);
+
+  const handleFileProcessing = useCallback((files: File[]) => {
+      if (files && files.length > 0) {
+        if (validateFiles(files)) {
+          onFilesSelected(files);
+          onError(null);
+        } else {
+          onError(`Invalid file type. Please upload: ${accept}`);
+          // Clear the input value so the user can select the same file again after an error
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        }
+      }
+  }, [validateFiles, onFilesSelected, onError, accept]);
+
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -34,19 +78,19 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, accept, multip
     e.stopPropagation();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    if (files && files.length > 0) {
-      onFilesSelected(files);
-    }
-  }, [onFilesSelected]);
+    handleFileProcessing(files);
+  }, [handleFileProcessing]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      onFilesSelected(files);
-    }
+    handleFileProcessing(files);
   };
 
   const handleClick = () => {
+    // Clear previous error when user tries to upload again
+    if (error) {
+      onError(null);
+    }
     fileInputRef.current?.click();
   };
 
@@ -58,7 +102,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, accept, multip
       onDrop={handleDrop}
       onClick={handleClick}
       className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors duration-300 ${
-        isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
+        isDragging 
+            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+            : error 
+                ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
       }`}
     >
       <input
@@ -77,6 +125,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, accept, multip
           <span className="font-semibold text-primary-600 dark:text-primary-400">{title}</span> or drag and drop
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-500">{multiple ? 'Multiple files allowed' : 'Single file only'}</p>
+        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       </div>
     </div>
   );

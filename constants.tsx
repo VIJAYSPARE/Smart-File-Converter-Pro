@@ -2,7 +2,8 @@ import React from 'react';
 // Fix: Changed 'import type' to 'import' to allow enum to be used as a value.
 import { ConversionType } from './types';
 
-export const ICONS: { [key in ConversionType]: JSX.Element } = {
+// Fix: Replaced JSX.Element with React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
+export const ICONS: { [key in ConversionType]: React.ReactElement } = {
   [ConversionType.IMAGE_TO_TEXT]: (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
