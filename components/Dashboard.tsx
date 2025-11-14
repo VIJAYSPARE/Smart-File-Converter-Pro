@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ConversionType } from '../types';
 import { ICONS } from '../constants';
@@ -27,6 +26,7 @@ const Dashboard: React.FC = () => {
     ConversionType.IMAGE_TO_PDF,
     ConversionType.TEXT_TO_PDF,
     ConversionType.PDF_TO_WORD,
+    ConversionType.TEXT_TO_DIAGRAM,
   ];
 
   return (

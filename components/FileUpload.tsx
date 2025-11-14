@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 
 interface FileUploadProps {
-  onFilesSelected: (files: File[]) => void;
+  onFilesSelected: (files: File[]) => void | Promise<void>;
   accept: string;
   multiple: boolean;
   title: string;

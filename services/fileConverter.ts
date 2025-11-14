@@ -1,7 +1,17 @@
-
 // This assumes jspdf and pdfjsLib are available globally from CDN scripts in index.html
 declare const jspdf: any;
 declare const pdfjsLib: any;
+declare const mammoth: any;
+
+export const base64ToBlob = (base64: string, mimeType: string): Blob => {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+};
 
 // Utility to read file as a Data URL
 const readFileAsDataURL = (file: File): Promise<string> => {
@@ -13,15 +23,42 @@ const readFileAsDataURL = (file: File): Promise<string> => {
   });
 };
 
-// Utility to read file as text
-const readFileAsText = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsText(file);
-    });
+const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
 };
+
+export const readTextFile = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+};
+
+export const docToText = async (file: File): Promise<string> => {
+  const arrayBuffer = await readFileAsArrayBuffer(file);
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value;
+};
+
+export const pdfToText = async (file: File): Promise<string> => {
+  const arrayBuffer = await readFileAsArrayBuffer(file);
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let textContent = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const text = await page.getTextContent();
+    textContent += text.items.map((item: any) => item.str).join(' ') + '\n';
+  }
+  return textContent;
+};
+
 
 export const imagesToPdf = async (files: File[], outputFileName: string): Promise<Blob> => {
   const { jsPDF } = jspdf;
@@ -54,9 +91,8 @@ export const imagesToPdf = async (files: File[], outputFileName: string): Promis
   return doc.output('blob');
 };
 
-export const textToPdf = async (file: File, outputFileName: string): Promise<Blob> => {
+export const textToPdf = async (textContent: string, outputFileName: string): Promise<Blob> => {
     const { jsPDF } = jspdf;
-    const textContent = await readFileAsText(file);
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
