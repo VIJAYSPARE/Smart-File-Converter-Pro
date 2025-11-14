@@ -223,7 +223,8 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
     }, {} as typeof previews);
     setPreviews(initialPreviews);
 
-    await Promise.all(diagramTypesToGenerate.map(async (diagramType) => {
+    // Changed from parallel to sequential execution to avoid potential race conditions.
+    for (const diagramType of diagramTypesToGenerate) {
         try {
             const imageData = await generateDiagram(textInput, diagramType, styleOptions.color, styleOptions.layout);
             setPreviews(prev => ({ ...prev, [diagramType]: { loading: false, error: null, data: imageData } }));
@@ -231,7 +232,7 @@ const ConversionModal: React.FC<ConversionModalProps> = ({ type, isOpen, onClose
             console.error(`Failed to generate ${diagramType}`, e);
             setPreviews(prev => ({ ...prev, [diagramType]: { loading: false, error: e.message || 'Failed to generate', data: null } }));
         }
-    }));
+    }
     
     setStep('previews');
   };
